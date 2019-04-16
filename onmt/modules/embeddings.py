@@ -182,6 +182,8 @@ class Embeddings(nn.Module):
             options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
             weight_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
             self.elmo = Elmo(options_file, weight_file, 2, dropout=0)
+            self.device = torch.device('cuda:0')
+            self.elmo.to(self.device)
 
             # initialize index to source word
             fields = torch.load(vocab_path)
@@ -258,6 +260,7 @@ class Embeddings(nn.Module):
             for i in range(source.shape[1]):
                 sentences.append([self.index_to_src[j[0]] for j in source[:, i, :]])
             character_ids = batch_to_ids(sentences)
+            character_ids = character_ids.to(self.device)
             embedded_sentences = self.elmo(character_ids)['elmo_representations']
             source = embedded_sentences[0].permute(1, 0, 2)            
 
