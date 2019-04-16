@@ -5,6 +5,9 @@ import warnings
 import torch
 import torch.nn as nn
 
+from allennlp.modules.elmo import Elmo, batch_to_ids
+import numpy as np
+
 from onmt.modules.util_class import Elementwise
 
 
@@ -105,7 +108,9 @@ class Embeddings(nn.Module):
                  feat_vocab_sizes=[],
                  dropout=0,
                  sparse=False,
-                 fix_word_vecs=False):
+                 fix_word_vecs=False,
+                 elmo_flag=False,
+                 vocab_path=None):
         self._validate_args(feat_merge, feat_vocab_sizes, feat_vec_exponent,
                             feat_vec_size, feat_padding_idx)
 
@@ -169,6 +174,19 @@ class Embeddings(nn.Module):
 
         if fix_word_vecs:
             self.word_lut.weight.requires_grad = False
+
+        # set up elmo
+        self.elmo_flag = elmo_flag
+        if self.elmo_flag:
+            # initialize elmo model
+            options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
+            weight_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
+            self.elmo = Elmo(options_file, weight_file, 2, dropout=0)
+
+            # initialize index to source word
+            fields = torch.load(vocab_path)
+            self.index_to_src = fields['src'][0][1].vocab.itos
+
 
     def _validate_args(self, feat_merge, feat_vocab_sizes, feat_vec_exponent,
                        feat_vec_size, feat_padding_idx):
@@ -235,7 +253,15 @@ class Embeddings(nn.Module):
             FloatTensor: Word embeddings ``(len, batch, embedding_size)``
         """
 
-        if self.position_encoding:
+        if self.elmo_flag:
+            sentences = []
+            for i in range(source.shape[1]):
+                sentences.append([self.index_to_src[j[0]] for j in source[:, i, :]])
+            character_ids = batch_to_ids(sentences)
+            embedded_sentences = self.elmo(character_ids)['elmo_representations']
+            source = embedded_sentences[0].permute(1, 0, 2)            
+
+        elif self.position_encoding:
             for i, module in enumerate(self.make_embedding._modules.values()):
                 if i == len(self.make_embedding._modules.values()) - 1:
                     source = module(source, step=step)
