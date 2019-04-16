@@ -181,7 +181,8 @@ class Embeddings(nn.Module):
             # initialize elmo model
             options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
             weight_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
-            self.elmo = Elmo(options_file, weight_file, 2, dropout=0)
+            # self.elmo = Elmo(options_file, weight_file, 2, dropout=0)
+            self.elmo = Elmo(options_file, weight_file, 1, scalar_mix_parameters=[1/3, 1/3, 1/3], dropout=0)
             self.device = torch.device('cuda:0')
             self.elmo.to(self.device)
 
@@ -262,7 +263,7 @@ class Embeddings(nn.Module):
             character_ids = batch_to_ids(sentences)
             character_ids = character_ids.to(self.device)
             embedded_sentences = self.elmo(character_ids)['elmo_representations']
-            source = embedded_sentences[0].permute(1, 0, 2)            
+            source = embedded_sentences[0].permute(1, 0, 2)
 
         elif self.position_encoding:
             for i, module in enumerate(self.make_embedding._modules.values()):
